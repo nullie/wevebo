@@ -10,3 +10,5 @@ irc = "0.15.0"
 tokio = { version = "1.0.0", features = ["rt", "rt-multi-thread", "macros", "net", "time"] }
 futures = "0.3.0"
 failure = "0.1.8"
+chrono = "0.4.31"
+lazy-regex = "3.0.2"
