@@ -21,12 +21,13 @@
 
         cargoLock.lockFile = ./Cargo.lock;
 
-        nativeBuildInputs = [pkgs.pkg-config pkgs.openssl.dev pkgs.rustfmt];
+        nativeBuildInputs = [pkgs.pkg-config pkgs.openssl.dev];
       };
 
       defaultPackage = self.packages.${system}.hound;
 
       devShell = pkgs.mkShell {
+        packages = [pkgs.rustfmt];
         inputsFrom = builtins.attrValues self.packages.${system};
       };
 

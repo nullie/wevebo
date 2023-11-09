@@ -57,20 +57,23 @@ impl LogParser {
                         regex_captures!(r#"^(.*?) \((.*?)@(.*?)\) has quit (.*)$"#, message)
                     {
                         Ok(Some(self.quit(nickname, username, hostname, comment)))
-                    } else if let Some((_, nickname, username, hostname, channel, comment)) =
-                        regex_captures!(r"^(.*?) \((.*?)@(.*?)\) has left (.*?)( \(.*\))?$", message)
-                    {
+                    } else if let Some((_, nickname, username, hostname, channel, comment)) = regex_captures!(
+                        r"^(.*?) \((.*?)@(.*?)\) has left (.*?)( \(.*\))?$",
+                        message
+                    ) {
                         let comment = if comment == "" {
                             None
                         } else {
                             Some(regex_captures!(r" \((.*)\)", comment).unwrap().1)
                         };
-                        Ok(Some(self.part(nickname, username, hostname, channel, comment)))
-                } else if let Some((_, kicker, target, comment)) =
-                    regex_captures!(r"^(.*?) has kicked (.*?) \((.*)\)$", message)
-                {
-                    Ok(Some(self.kick(kicker, target, comment)))
-                } else {
+                        Ok(Some(
+                            self.part(nickname, username, hostname, channel, comment),
+                        ))
+                    } else if let Some((_, kicker, target, comment)) =
+                        regex_captures!(r"^(.*?) has kicked (.*?) \((.*)\)$", message)
+                    {
+                        Ok(Some(self.kick(kicker, target, comment)))
+                    } else {
                         Err(UnknownMessage(line.to_string()))
                     }
                 }
@@ -156,7 +159,14 @@ impl LogParser {
         }
     }
 
-    fn part(&mut self, nickname: &str, username: &str, hostname: &str, channel: &str, comment: Option<&str>) -> Message {
+    fn part(
+        &mut self,
+        nickname: &str,
+        username: &str,
+        hostname: &str,
+        channel: &str,
+        comment: Option<&str>,
+    ) -> Message {
         let state = self.state.as_mut().unwrap();
         state.attrs.remove(nickname);
         Message {
@@ -180,7 +190,11 @@ impl LogParser {
                 attrs.map_or("".to_string(), |attrs| attrs.username.clone()),
                 attrs.map_or("".to_string(), |attrs| attrs.hostname.clone()),
             )),
-            command: Command::KICK(state.channel.clone(), target.to_string(), Some(comment.to_string())),
+            command: Command::KICK(
+                state.channel.clone(),
+                target.to_string(),
+                Some(comment.to_string()),
+            ),
         }
     }
 
