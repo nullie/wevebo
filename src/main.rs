@@ -8,6 +8,11 @@ async fn main() -> Result<(), failure::Error> {
     // We can also load the Config at runtime via Config::load("path/to/config.toml")
     let config = Config {
         nickname: Some("hound".to_owned()),
+        alt_nicks: vec![
+            "hound_from_hell".to_owned(),
+            "hound_from_gehenna".to_owned(),
+            "hound_from_netherworld".to_owned(),
+        ],
         server: Some("irc.afternet.org".to_owned()),
         channels: vec!["#shyroom".to_owned()],
         ..Config::default()
