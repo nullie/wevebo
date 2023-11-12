@@ -21,7 +21,8 @@
 
         cargoLock.lockFile = ./Cargo.lock;
 
-        nativeBuildInputs = [pkgs.pkg-config pkgs.openssl.dev];
+        buildInputs = [pkgs.openssl];
+        nativeBuildInputs = [pkgs.pkg-config];
       };
 
       defaultPackage = self.packages.${system}.hound;
