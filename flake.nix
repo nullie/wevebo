@@ -28,7 +28,7 @@
       defaultPackage = self.packages.${system}.hound;
 
       devShell = pkgs.mkShell {
-        packages = [pkgs.rustfmt pkgs.clippy];
+        packages = [pkgs.rustfmt pkgs.clippy pkgs.cargo-edit];
         inputsFrom = builtins.attrValues self.packages.${system};
       };
 
