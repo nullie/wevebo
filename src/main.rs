@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use chrono::{DateTime, NaiveDateTime, Utc};
 use futures::prelude::*;
 use irc::client::prelude::*;
@@ -32,18 +34,26 @@ async fn main() -> Result<(), failure::Error> {
             println!("{:?} {:?}", channel, text);
             let prefix = format!("{}: ", client.current_nickname());
             if let Some(location_name) = text.strip_prefix(&prefix) {
-                if let Some(location) = get_location(location_name).await? {
-                    let weather = get_weather(location.location).await?;
-
-                    let message = weather_to_text(&weather, &location);
-
-                    client.send_privmsg(channel, message)?;
-                }
+                let reply = weather_reply(location_name).await.unwrap_or_else(|e| {
+                    log::error!("weather_reply error: {:?}", e);
+                    "hold up your finger".into()
+                });
+                client.send_privmsg(channel, reply)?;
             }
         }
     }
 
     Ok(())
+}
+
+async fn weather_reply(location_name: &str) -> Result<Cow<str>, failure::Error> {
+    Ok(if let Some(location) = get_location(location_name).await? {
+        let weather = get_weather(location.location).await?;
+
+        weather_to_text(&weather, &location).into()
+    } else {
+        "don't know where it is".into()
+    })
 }
 
 #[derive(Deserialize, Debug)]
