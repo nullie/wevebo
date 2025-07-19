@@ -1,9 +1,7 @@
-use std::collections::{HashSet, VecDeque};
-
-use chrono::{Date, DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use futures::prelude::*;
-use irc::{client::prelude::*, error};
-use serde::{Deserialize, Deserializer, Serializer};
+use irc::client::prelude::*;
+use serde::{Deserialize, Deserializer};
 
 #[tokio::main]
 async fn main() -> Result<(), failure::Error> {
@@ -11,14 +9,14 @@ async fn main() -> Result<(), failure::Error> {
 
     // We can also load the Config at runtime via Config::load("path/to/config.toml")
     let config = Config {
-        nickname: Some("wevebo".to_owned()),
+        nickname: Some("weve".to_owned()),
         alt_nicks: vec![
-            "wevebobo".to_owned(),
-            "wevevabo".to_owned(),
-            "weveboba".to_owned(),
+            "wevebo".to_owned(),
+            "weveva".to_owned(),
+            "weveth".to_owned(),
         ],
         server: Some("irc.afternet.org".to_owned()),
-        channels: vec!["#wevebo".to_owned()],
+        channels: vec!["#wevebo".to_owned(), "#shyroom".to_owned()],
         ..Config::default()
     };
 
@@ -32,6 +30,16 @@ async fn main() -> Result<(), failure::Error> {
 
         if let Command::PRIVMSG(channel, text) = message.command {
             println!("{:?} {:?}", channel, text);
+            let prefix = format!("{}: ", client.current_nickname());
+            if let Some(location_name) = text.strip_prefix(&prefix) {
+                if let Some(location) = get_location(location_name).await? {
+                    let weather = get_weather(location.location).await?;
+
+                    let message = weather_to_text(&weather, &location);
+
+                    client.send_privmsg(channel, message)?;
+                }
+            }
         }
     }
 
@@ -66,42 +74,44 @@ where
     Ok(DateTime::<Utc>::from_naive_utc_and_offset(dt, Utc))
 }
 
-async fn get_weather() -> Result<(), failure::Error> {
-    let query = [
-        ("latitude", "52.03"),
-        ("longitude", "5.08"),
-        (
-            "current",
-            "temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m",
-        ),
+async fn get_weather(location: Location) -> Result<WeatherResponseCurrent, failure::Error> {
+    let location = [
+        ("latitude", location.latitude.to_string()),
+        ("longitude", location.longitude.to_string()),
     ];
     let client = reqwest::ClientBuilder::new()
         .connection_verbose(true)
         .build()?;
     let weather = client
         .get("https://api.open-meteo.com/v1/forecast")
-        .query(&query)
+        .query(&location)
+        .query(&[
+            (
+            "current",
+            "temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m",
+        ), ("wind_speed_unit", "ms")])
         .send()
         .await?
         .json::<WeatherResponse>()
         .await?;
 
     println!("{weather:?}");
-    println!("{}", weather_to_text(&weather));
 
-    Ok(())
+    Ok(weather.current)
 }
 
-fn weather_to_text(weather: &WeatherResponse) -> String {
-    let current = &weather.current;
+fn weather_to_text(weather: &WeatherResponseCurrent, location: &SearchResponseEntry) -> String {
     format!(
-        "{} {:.1}C {}% {}-{}m/s {}",
-        weather_code_to_text(current.weather_code),
-        current.temperature_2m,
-        current.relative_humidity_2m,
-        current.wind_speed_10m,
-        current.wind_gusts_10m,
-        direction_to_text(current.wind_direction_10m),
+        "weather at {}, {}: {}, {:.1}C, {}%, {} {}-{}m/s (reported {}m ago)",
+        location.name,
+        location.country,
+        weather_code_to_text(weather.weather_code),
+        weather.temperature_2m,
+        weather.relative_humidity_2m,
+        direction_to_text(weather.wind_direction_10m),
+        weather.wind_speed_10m,
+        weather.wind_gusts_10m,
+        (Utc::now() - weather.time).num_minutes(),
     )
 }
 
@@ -151,4 +161,42 @@ fn direction_to_text(direction: u16) -> &'static str {
         293..=337 => "NW",
         360.. => panic!("direction >= 360"),
     }
+}
+
+#[derive(Deserialize, Debug)]
+struct SearchResponse {
+    results: Option<Vec<SearchResponseEntry>>,
+}
+
+#[derive(Deserialize, Debug)]
+struct SearchResponseEntry {
+    name: String,
+    #[serde(flatten)]
+    location: Location,
+    country: String,
+}
+
+#[derive(Deserialize, Debug, Clone, Copy)]
+struct Location {
+    latitude: f32,
+    longitude: f32,
+}
+
+async fn get_location(name: &str) -> Result<Option<SearchResponseEntry>, failure::Error> {
+    let query = [("name", name), ("count", "1")];
+    let client = reqwest::ClientBuilder::new()
+        .connection_verbose(true)
+        .build()?;
+    let response = client
+        .get("https://geocoding-api.open-meteo.com/v1/search")
+        .query(&query)
+        .send()
+        .await?
+        .json::<SearchResponse>()
+        .await?;
+
+    Ok(response.results.and_then(|mut results| {
+        assert!(results.len() <= 1);
+        results.pop()
+    }))
 }
