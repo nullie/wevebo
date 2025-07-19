@@ -14,7 +14,7 @@
         inherit system;
       };
     in {
-      packages.hound = pkgs.rustPlatform.buildRustPackage {
+      packages.wevebo = pkgs.rustPlatform.buildRustPackage {
         name = "wevebo";
 
         src = ./.;
@@ -25,7 +25,7 @@
         nativeBuildInputs = [pkgs.pkg-config];
       };
 
-      defaultPackage = self.packages.${system}.hound;
+      defaultPackage = self.packages.${system}.wevebo;
 
       devShell = pkgs.mkShell {
         packages = [pkgs.rustfmt pkgs.clippy pkgs.cargo-edit];
