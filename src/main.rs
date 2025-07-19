@@ -111,10 +111,15 @@ async fn get_weather(location: Location) -> Result<WeatherResponseCurrent, failu
 }
 
 fn weather_to_text(weather: &WeatherResponseCurrent, location: &SearchResponseEntry) -> String {
+    let mut place_parts: Vec<&str> = vec![&location.name];
+
+    if let Some(country) = &location.country {
+        place_parts.push(country);
+    }
+
     format!(
-        "weather at {}, {}: {}, {:.1}C, {}%, {} {}-{}m/s (reported {}m ago)",
-        location.name,
-        location.country,
+        "weather at {}: {}, {:.1}C, {}%, {} {}-{}m/s (reported {}m ago)",
+        place_parts.join(", "),
         weather_code_to_text(weather.weather_code),
         weather.temperature_2m,
         weather.relative_humidity_2m,
@@ -183,7 +188,7 @@ struct SearchResponseEntry {
     name: String,
     #[serde(flatten)]
     location: Location,
-    country: String,
+    country: Option<String>,
 }
 
 #[derive(Deserialize, Debug, Clone, Copy)]
