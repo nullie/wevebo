@@ -1,9 +1,9 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, fmt::Display, str::FromStr};
 
 use chrono::{DateTime, NaiveDateTime, Utc};
 use futures::prelude::*;
 use irc::client::prelude::*;
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, de};
 
 #[tokio::main]
 async fn main() -> Result<(), failure::Error> {
@@ -33,8 +33,8 @@ async fn main() -> Result<(), failure::Error> {
         if let Command::PRIVMSG(channel, text) = message.command {
             println!("{:?} {:?}", channel, text);
             let prefix = format!("{}: ", client.current_nickname());
-            if let Some(location_name) = text.strip_prefix(&prefix) {
-                let reply = weather_reply(location_name).await.unwrap_or_else(|e| {
+            if let Some(place_name) = text.strip_prefix(&prefix) {
+                let reply = weather_reply(place_name).await.unwrap_or_else(|e| {
                     log::error!("weather_reply error: {:?}", e);
                     "hold up your finger".into()
                 });
@@ -46,11 +46,11 @@ async fn main() -> Result<(), failure::Error> {
     Ok(())
 }
 
-async fn weather_reply(location_name: &str) -> Result<Cow<str>, failure::Error> {
-    Ok(if let Some(location) = get_location(location_name).await? {
-        let weather = get_weather(location.location).await?;
+async fn weather_reply(place_name: &str) -> Result<Cow<str>, failure::Error> {
+    Ok(if let Some(place) = get_place(place_name).await? {
+        let weather = get_weather(place.location()).await?;
 
-        weather_to_text(&weather, &location).into()
+        weather_to_text(&weather, &place).into()
     } else {
         "don't know where it is".into()
     })
@@ -110,16 +110,10 @@ async fn get_weather(location: Location) -> Result<WeatherResponseCurrent, failu
     Ok(weather.current)
 }
 
-fn weather_to_text(weather: &WeatherResponseCurrent, location: &SearchResponseEntry) -> String {
-    let mut place_parts: Vec<&str> = vec![&location.name];
-
-    if let Some(country) = &location.country {
-        place_parts.push(country);
-    }
-
+fn weather_to_text(weather: &WeatherResponseCurrent, location: &impl Place) -> String {
     format!(
         "weather at {}: {}, {:.1}C, {}%, {} {}-{}m/s (reported {}m ago)",
-        place_parts.join(", "),
+        location.name(),
         weather_code_to_text(weather.weather_code),
         weather.temperature_2m,
         weather.relative_humidity_2m,
@@ -178,17 +172,26 @@ fn direction_to_text(direction: u16) -> &'static str {
     }
 }
 
-#[derive(Deserialize, Debug)]
-struct SearchResponse {
-    results: Option<Vec<SearchResponseEntry>>,
+#[derive(Deserialize, Debug, Clone)]
+struct SearchResponseEntry {
+    display_name: String,
+    #[serde(deserialize_with = "f32_from_str")]
+    lat: f32,
+    #[serde(deserialize_with = "f32_from_str")]
+    lon: f32,
 }
 
-#[derive(Deserialize, Debug)]
-struct SearchResponseEntry {
-    name: String,
-    #[serde(flatten)]
-    location: Location,
-    country: Option<String>,
+impl Place for SearchResponseEntry {
+    fn name(&self) -> &str {
+        &self.display_name
+    }
+
+    fn location(&self) -> Location {
+        Location {
+            latitude: self.lat,
+            longitude: self.lon,
+        }
+    }
 }
 
 #[derive(Deserialize, Debug, Clone, Copy)]
@@ -197,21 +200,34 @@ struct Location {
     longitude: f32,
 }
 
-async fn get_location(name: &str) -> Result<Option<SearchResponseEntry>, failure::Error> {
-    let query = [("name", name), ("count", "1")];
+fn f32_from_str<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+where
+    T: FromStr,
+    T::Err: Display,
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    T::from_str(&s).map_err(de::Error::custom)
+}
+
+trait Place {
+    fn name(&self) -> &str;
+    fn location(&self) -> Location;
+}
+
+async fn get_place(name: &str) -> Result<Option<impl Place>, failure::Error> {
+    let query = [("q", name), ("format", "jsonv2")];
     let client = reqwest::ClientBuilder::new()
         .connection_verbose(true)
+        .user_agent("Wevebot IRC weather bot")
         .build()?;
     let response = client
-        .get("https://geocoding-api.open-meteo.com/v1/search")
+        .get("https://nominatim.openstreetmap.org/search")
         .query(&query)
         .send()
         .await?
-        .json::<SearchResponse>()
+        .json::<Vec<SearchResponseEntry>>()
         .await?;
 
-    Ok(response.results.and_then(|mut results| {
-        assert!(results.len() <= 1);
-        results.pop()
-    }))
+    Ok(response.first().cloned())
 }
