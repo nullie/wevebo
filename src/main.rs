@@ -160,7 +160,7 @@ fn weather_code_to_text(code: u8) -> &'static str {
 
 fn direction_to_text(direction: u16) -> &'static str {
     match direction {
-        0..=22 | 338..=359 => "N",
+        0..=22 | 338..=360 => "N",
         23..=67 => "NE",
         68..=112 => "E",
         113..=157 => "SE",
@@ -168,7 +168,7 @@ fn direction_to_text(direction: u16) -> &'static str {
         203..=247 => "SW",
         248..=292 => "W",
         293..=337 => "NW",
-        360.. => panic!("direction >= 360"),
+        361.. => panic!("direction > 360"),
     }
 }
 
