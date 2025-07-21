@@ -112,7 +112,7 @@ async fn get_weather(location: Location) -> Result<WeatherResponseCurrent, failu
 
 fn weather_to_text(weather: &WeatherResponseCurrent, location: &impl Place) -> String {
     format!(
-        "weather at {}: {}, {:.1}C, {}%, {} {}-{}m/s (reported {}m ago)",
+        "weather at {}: {}, {:.1}C, {}%, {} {:.1}-{:.1}m/s ({}m ago)",
         location.name(),
         weather_code_to_text(weather.weather_code),
         weather.temperature_2m,
