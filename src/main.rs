@@ -216,7 +216,7 @@ trait Place {
 }
 
 async fn get_place(name: &str) -> Result<Option<impl Place>, failure::Error> {
-    let query = [("q", name), ("format", "jsonv2")];
+    let query = [("q", name), ("format", "jsonv2"), ("accept-language", "en")];
     let client = reqwest::ClientBuilder::new()
         .connection_verbose(true)
         .user_agent("Wevebot IRC weather bot")
