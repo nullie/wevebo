@@ -28,10 +28,7 @@ async fn main() -> Result<(), failure::Error> {
     let mut stream = client.stream()?;
 
     while let Some(message) = stream.next().await.transpose()? {
-        println!("{:?}", message);
-
         if let Command::PRIVMSG(channel, text) = message.command {
-            println!("{:?} {:?}", channel, text);
             let prefix = format!("{}: ", client.current_nickname());
             if let Some(place_name) = text.strip_prefix(&prefix) {
                 let reply = weather_reply(place_name).await.unwrap_or_else(|e| {
@@ -104,8 +101,6 @@ async fn get_weather(location: Location) -> Result<WeatherResponseCurrent, failu
         .await?
         .json::<WeatherResponse>()
         .await?;
-
-    println!("{weather:?}");
 
     Ok(weather.current)
 }
