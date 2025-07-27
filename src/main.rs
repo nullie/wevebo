@@ -5,6 +5,8 @@ use futures::prelude::*;
 use irc::client::prelude::*;
 use serde::{Deserialize, Deserializer, de};
 
+const NAME_SEPARATORS: &[&str] = &[":", ",", " "];
+
 #[tokio::main]
 async fn main() -> Result<(), failure::Error> {
     env_logger::init();
@@ -29,8 +31,14 @@ async fn main() -> Result<(), failure::Error> {
 
     while let Some(message) = stream.next().await.transpose()? {
         if let Command::PRIVMSG(channel, text) = message.command {
-            let prefix = format!("{}: ", client.current_nickname());
-            if let Some(place_name) = text.strip_prefix(&prefix) {
+            if let Some(place_name) = NAME_SEPARATORS
+                .iter()
+                .filter_map(|sep| {
+                    let prefix = format!("{}{}", client.current_nickname(), sep);
+                    text.strip_prefix(&prefix)
+                })
+                .next()
+            {
                 let reply = weather_reply(place_name).await.unwrap_or_else(|e| {
                     log::error!("weather_reply error: {:?}", e);
                     "hold up your finger".into()
